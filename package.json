@@ -1,0 +1,16 @@
+{
+  "name": "neurosity",
+  "version": "1.0.0",
+  "description": "Neusority SDK software",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Sagun Maharjan",
+  "license": "MIT",
+  "dependencies": {
+    "@neurosity/sdk": "^6.5.10",
+    "dotenv": "^16.3.1"
+  }
+}
