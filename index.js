@@ -1,10 +1,15 @@
+require("dotenv").config();
+const util = require('util');
+const execAsync = util.promisify(require('child_process').exec);
 const { exec } = require('child_process');
 const { Neurosity } = require("@neurosity/sdk");
-require("dotenv").config();
 
+//Custom Configurations 
 const deviceId = process.env.DEVICE_ID || "";
 const email = process.env.EMAIL || "";
 const password = process.env.PASSWORD || "";
+const kasaHost = '192.168.0.108';
+const kinesis_name= "leftMiddleFinger";
 
 const verifyEnvs = (email, password, deviceId) => {
     const invalidEnv = (env) => {
@@ -35,73 +40,66 @@ const verifyEnvs = (email, password, deviceId) => {
         console.log(error);
         throw new Error(error);
       });
-    console.log("Logged in");
+    console.log("Logged in device:");
   };
+  executeCommand(kasaHost,1);
   
   main();
 
-const util = require('util');
-const execAsync = util.promisify(require('child_process').exec);
+neurosity.kinesis(kinesis_name).subscribe(async (intent) => {
+  const probabilityValues = await Promise.all(intent.predictions.map(prediction => prediction.probability));
+  probabilityValues.forEach(async (probabilityValue) => {
+    brightness=convertToPercentage(probabilityValue);
+      brightnessQuartile_=brightnessQuartile(brightness);
+      console.log("Probability Value: "+probabilityValue);
+      console.log("Brightness Quartile: "+brightnessQuartile_);
+      console.log("Brightness Percentage: "+brightness);
+      executeCommand(kasaHost,brightnessQuartile_);
+    // }
+    // else {
+    //   console.log("Limit reached");
+    //   commandCounter = 0;
+    // }
+  });
 
-async function executeCommandWithTimeout(commandToExecute, timeoutMilliseconds) {
-    try {
-        const { stdout, stderr } = await execAsync(commandToExecute);
-        console.log(`stdout:\n${stdout}`);
-        console.error(`stderr: ${stderr}`);
-      }
-      catch (error) {
-        console.error(`Error: ${error.message}`);
-      }
+});
 
-  
-    // Set a timeout for the command execution
-    // const timeoutId = setTimeout(() => {
-    //   console.error('Command execution timed out');
-    //   childProcess.kill(); // Kill the child process if it's still running after the timeout
-    // }, timeoutMilliseconds);
-  
-    // // Listen for the 'exit' event of the child process
-    // childProcess.on('exit', () => {
-    //   clearTimeout(timeoutId); // Clear the timeout when the child process exits
-    // });
+function brightnessQuartile(brightness) {
+  let brightnessQuartileValue;
+
+  if (brightness > 25) {
+    brightnessQuartileValue = 100;
+  } else if (brightness <= 25) {
+    brightnessQuartileValue = 1;
+  }
+
+  return brightnessQuartileValue;
 }
-async function toggleKasaState(host, currentState, timeoutMilliseconds) {
-    let newState=currentState;
-    if (newState === 'on') {
-        newState = 'off';
-    } else {
-        newState = 'on';
-    }
 
-    const commandToExecute = `kasa --host ${host} ${newState}`;
-    console.log(newState);
+
+
+//Utility functions
+function convertToPercentage(decimalValue) {
+  // Multiply by 100 to convert to percentage
+  var percentageValue = decimalValue * 100;
+  
+  // Round to zero decimal places
+  percentageValue = Math.round(percentageValue);
+  
+  // Append the "%" symbol
+  return percentageValue;
+}
+
+
+function executeCommand(host, brightness) {
+    const commandToExecute = `kasa --host ${host} --type "bulb" brightness ${brightness}`;
 
     try {
         // Assuming executeCommandWithTimeout returns a Promise
-        await executeCommandWithTimeout(commandToExecute, timeoutMilliseconds);
-        console.log(`Successfully toggled to ${newState}`);
+        const result = execAsync(commandToExecute);
+        // console.log(`Successfully toggled to ${newState}`);
     } catch (error) {
-        console.error('Error toggling state:', error);
+        console.error('Error executing command state:', error);
         // Handle the error as needed
     }
 }
-
-// Example usage with a timeout
-const timeoutMilliseconds = 2000; // 2 seconds
- // Example usage
-const kasaHost = '192.168.0.140';
-let threshold=0.97; 
-
-
-// leftMiddleFinger
-neurosity.kinesis("leftMiddleFinger").subscribe((intent) => {
-    const probabilityValues = intent.predictions.map(prediction => prediction.probability);
-    probabilityValues.forEach(probabilityValue => {
-        if(probabilityValue >= threshold){
-            // console.log(intent);
-            // Toggle the state
-            toggleKasaState(kasaHost, 'on', timeoutMilliseconds);
-        }
-    });
-
-});
